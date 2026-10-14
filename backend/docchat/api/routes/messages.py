@@ -1,9 +1,10 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from ...runtime import AppContext
@@ -28,6 +29,7 @@ def list_messages(
 async def stream_message(
     conversation_id: str,
     payload: MessageRequest,
+    request: Request,
     user: dict[str, Any] = Depends(current_user),
     context: AppContext = Depends(get_context),
 ) -> StreamingResponse:
@@ -39,45 +41,121 @@ async def stream_message(
     if selected_model not in context.openai.allowed_chat_models:
         raise HTTPException(status_code=422, detail="Selected chat model is unavailable")
     question = payload.content.strip()
-    history_limit = int(context.config.section("chat").get("recent_messages", 10))
+    chat_settings = context.config.section("chat")
+    history_limit = int(chat_settings.get("recent_messages", 10))
     history = context.database.list_messages(conversation_id, user["id"], history_limit)
-    user_message = context.database.add_message(conversation_id, "user", question)
-    if conversation["title"] == "New conversation":
-        context.database.update_conversation_title(conversation_id, user["id"], question[:80])
     chunks = context.database.get_chunks(document["id"], user["id"])
-    result = await asyncio.to_thread(
-        context.rag.answer,
-        document_id=document["id"],
-        user_id=user["id"],
-        question=question,
-        chunks=chunks,
-        history=history,
-        model=selected_model,
-    )
-    assistant_message = context.database.add_message(
-        conversation_id,
-        "assistant",
-        result.text,
-        citations=result.citations,
-        model=result.model,
-        input_tokens=result.input_tokens,
-        output_tokens=result.output_tokens,
-    )
-    context.logger.info(
-        "chat_answer_created",
-        extra={
-            "user_id": user["id"],
-            "document_id": document["id"],
-            "conversation_id": conversation_id,
-        },
-    )
 
     async def events():
+        yield sse("status", {"state": "processing"})
+        loop = asyncio.get_running_loop()
+        timeout_seconds = max(
+            1,
+            int(chat_settings.get("request_timeout_seconds", context.openai.chat_timeout_seconds)),
+        )
+        heartbeat_seconds = max(1.0, float(chat_settings.get("stream_heartbeat_seconds", 15)))
+        deadline = loop.time() + timeout_seconds
+        answer_task = asyncio.create_task(
+            asyncio.to_thread(
+                context.rag.answer,
+                document_id=document["id"],
+                user_id=user["id"],
+                question=question,
+                chunks=chunks,
+                history=history,
+                model=selected_model,
+            )
+        )
+        try:
+            while not answer_task.done():
+                remaining = deadline - loop.time()
+                if remaining <= 0:
+                    answer_task.cancel()
+                    context.logger.warning(
+                        "chat_generation_timed_out",
+                        extra={
+                            "request_id": getattr(request.state, "request_id", None),
+                            "user_id": user["id"],
+                            "document_id": document["id"],
+                            "conversation_id": conversation_id,
+                            "timeout_seconds": timeout_seconds,
+                        },
+                    )
+                    yield sse(
+                        "error",
+                        {"message": "This answer took too long to generate. Please try again."},
+                    )
+                    return
+                completed, _ = await asyncio.wait(
+                    {answer_task},
+                    timeout=min(heartbeat_seconds, remaining),
+                )
+                if not completed:
+                    yield sse("keepalive", {})
+
+            result = await answer_task
+            user_message, assistant_message = context.database.add_chat_exchange(
+                conversation_id,
+                user["id"],
+                question,
+                result.text,
+                citations=result.citations,
+                model=result.model,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+            )
+        except asyncio.CancelledError:
+            answer_task.cancel()
+            raise
+        except sqlite3.IntegrityError:
+            context.logger.info(
+                "chat_exchange_not_saved",
+                extra={
+                    "request_id": getattr(request.state, "request_id", None),
+                    "user_id": user["id"],
+                    "document_id": document["id"],
+                    "conversation_id": conversation_id,
+                    "error_code": "conversation_changed",
+                },
+            )
+            yield sse(
+                "error",
+                {
+                    "message": "This conversation is no longer available. Select an active conversation and try again."
+                },
+            )
+            return
+        except Exception as exc:
+            context.logger.error(
+                "chat_generation_failed",
+                extra={
+                    "request_id": getattr(request.state, "request_id", None),
+                    "user_id": user["id"],
+                    "document_id": document["id"],
+                    "conversation_id": conversation_id,
+                    "error_code": type(exc).__name__,
+                },
+            )
+            yield sse(
+                "error",
+                {"message": "MINDMATE could not complete this answer. Please try again."},
+            )
+            return
+
+        context.logger.info(
+            "chat_answer_created",
+            extra={
+                "request_id": getattr(request.state, "request_id", None),
+                "user_id": user["id"],
+                "document_id": document["id"],
+                "conversation_id": conversation_id,
+            },
+        )
         yield sse(
             "message",
             {"user_message_id": user_message["id"], "assistant_message_id": assistant_message["id"]},
         )
-        stream_size = int(context.config.section("chat").get("stream_chunk_characters", 28))
+        stream_size = max(1, int(chat_settings.get("stream_chunk_characters", 28)))
         for start in range(0, len(result.text), stream_size):
             yield sse("token", {"text": result.text[start : start + stream_size]})
             await asyncio.sleep(0.015)

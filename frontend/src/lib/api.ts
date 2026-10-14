@@ -243,8 +243,18 @@ export class ApiClient {
     return this.request<{ openai_configured: boolean }>("/api/settings/openai-key", { method: "DELETE" });
   }
 
-  async streamMessage(conversationId: string, content: string, model: string, handlers: StreamHandlers) {
+  async streamMessage(
+    conversationId: string,
+    content: string,
+    model: string,
+    handlers: StreamHandlers,
+    timeoutMs: number,
+  ) {
     const token = this.getToken();
+    const controller = new AbortController();
+    let reader: ReadableStreamDefaultReader<Uint8Array> | undefined;
+    let receivedDone = false;
+    const timeoutId = window.setTimeout(() => controller.abort(), Math.max(1, timeoutMs));
     let response: Response;
     try {
       response = await fetch(`/api/conversations/${conversationId}/messages/stream`, {
@@ -254,32 +264,71 @@ export class ApiClient {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({ content, model }),
+        signal: controller.signal,
       });
-    } catch {
-      throw new ApiError("Cannot reach DocChat. Check that the local server is running.", 0);
-    }
-    if (response.status === 401) this.onUnauthorized();
-    if (!response.ok) throw await parseError(response);
-    if (!response.body) throw new ApiError("The server returned an empty stream.", response.status);
+      if (response.status === 401) this.onUnauthorized();
+      if (!response.ok) throw await parseError(response);
+      if (!response.body) throw new ApiError("The server returned an empty stream.", response.status);
 
-    const reader = response.body.getReader();
-    const decoder = new TextDecoder();
-    let buffer = "";
-    while (true) {
-      const { value, done } = await reader.read();
-      if (done) break;
-      buffer += decoder.decode(value, { stream: true });
-      const blocks = buffer.split("\n\n");
-      buffer = blocks.pop() ?? "";
-      for (const block of blocks) {
-        let event = "message";
-        let data: unknown;
-        for (const line of block.split("\n")) {
-          if (line.startsWith("event:")) event = line.slice(6).trim();
-          if (line.startsWith("data:")) data = JSON.parse(line.slice(5).trim()) as unknown;
+      reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let buffer = "";
+      streamLoop: while (true) {
+        let chunk: ReadableStreamReadResult<Uint8Array>;
+        try {
+          chunk = await reader.read();
+        } catch (error) {
+          if (controller.signal.aborted) {
+            throw new ApiError("This answer took too long. Please try again.", 408);
+          }
+          throw error;
         }
-        const handler = handlers[event as keyof StreamHandlers] as ((payload: never) => void) | undefined;
-        if (handler && data !== undefined) handler(data as never);
+        if (chunk.done) break;
+        buffer += decoder.decode(chunk.value, { stream: true });
+        const blocks = buffer.split("\n\n");
+        buffer = blocks.pop() ?? "";
+        for (const block of blocks) {
+          let event = "message";
+          let data: unknown;
+          for (const line of block.split("\n")) {
+            if (line.startsWith("event:")) event = line.slice(6).trim();
+            if (line.startsWith("data:")) {
+              try {
+                data = JSON.parse(line.slice(5).trim()) as unknown;
+              } catch {
+                throw new ApiError("The server returned an invalid chat stream.", response.status);
+              }
+            }
+          }
+          if (event === "error") {
+            const message = data && typeof data === "object" && "message" in data && typeof data.message === "string"
+              ? data.message
+              : "MINDMATE could not complete this answer. Please try again.";
+            throw new ApiError(message, response.status);
+          }
+          const handler = handlers[event as keyof StreamHandlers] as ((payload: never) => void) | undefined;
+          if (handler && data !== undefined) handler(data as never);
+          if (event === "done") {
+            receivedDone = true;
+            break streamLoop;
+          }
+        }
+      }
+      if (!receivedDone) {
+        throw new ApiError("The chat stream ended before the answer was complete.", response.status);
+      }
+    } catch (error) {
+      if (controller.signal.aborted && !(error instanceof ApiError)) {
+        throw new ApiError("This answer took too long. Please try again.", 408);
+      }
+      if (error instanceof TypeError) {
+        throw new ApiError("Cannot reach DocChat. Check that the local server is running.", 0);
+      }
+      throw error;
+    } finally {
+      window.clearTimeout(timeoutId);
+      if (reader && !receivedDone) {
+        void reader.cancel().catch(() => undefined);
       }
     }
   }

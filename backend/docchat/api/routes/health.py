@@ -41,6 +41,15 @@ def safe_settings(
         "openai_configured": context.openai.configured,
         "chat_model": context.openai.chat_model,
         "chat_models": context.openai.chat_models,
+        "chat_timeout_seconds": max(
+            1,
+            int(
+                context.config.section("chat").get(
+                    "request_timeout_seconds",
+                    context.openai.chat_timeout_seconds,
+                )
+            ),
+        ),
         "embedding_model": context.openai.embedding_model,
         "embedding_dimensions": context.openai.embedding_dimensions,
         "max_file_mb": context.config.section("uploads").get("max_file_mb"),

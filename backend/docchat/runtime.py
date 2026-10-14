@@ -39,7 +39,7 @@ def build_context(config_path: str | Path) -> AppContext:
     uploads_path = config.path("uploads")
     uploads_path.mkdir(parents=True, exist_ok=True)
     openai = OpenAIClient(config)
-    rag = RagService(config, openai)
+    rag = RagService(config, openai, logger)
     ingestion = IngestionService(config, database, rag, openai, logger)
     intelligence = IntelligenceService(openai)
     return AppContext(
@@ -53,4 +53,3 @@ def build_context(config_path: str | Path) -> AppContext:
         uploads_path=uploads_path,
         frontend_path=config.path("static"),
     )
-

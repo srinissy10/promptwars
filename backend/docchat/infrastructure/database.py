@@ -482,6 +482,95 @@ class Database:
             "created_at": now,
         }
 
+    def add_chat_exchange(
+        self,
+        conversation_id: str,
+        user_id: str,
+        question: str,
+        answer: str,
+        *,
+        citations: list[dict[str, Any]],
+        model: str,
+        input_tokens: int,
+        output_tokens: int,
+    ) -> tuple[dict[str, Any], dict[str, Any]]:
+        user_message_id = str(uuid.uuid4())
+        assistant_message_id = str(uuid.uuid4())
+        user_created_at = utc_now()
+        assistant_created_at = utc_now()
+        with self.connect() as connection:
+            conversation = connection.execute(
+                "SELECT title FROM conversations WHERE id = ? AND user_id = ?",
+                (conversation_id, user_id),
+            ).fetchone()
+            if conversation is None:
+                raise sqlite3.IntegrityError("Conversation is no longer available")
+
+            connection.executemany(
+                """INSERT INTO messages(
+                    id, conversation_id, role, content, citations, model,
+                    input_tokens, output_tokens, created_at
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                [
+                    (
+                        user_message_id,
+                        conversation_id,
+                        "user",
+                        question,
+                        "[]",
+                        None,
+                        0,
+                        0,
+                        user_created_at,
+                    ),
+                    (
+                        assistant_message_id,
+                        conversation_id,
+                        "assistant",
+                        answer,
+                        json.dumps(citations, ensure_ascii=False),
+                        model,
+                        input_tokens,
+                        output_tokens,
+                        assistant_created_at,
+                    ),
+                ],
+            )
+            if conversation["title"] == "New conversation":
+                connection.execute(
+                    "UPDATE conversations SET title = ?, updated_at = ? WHERE id = ? AND user_id = ?",
+                    (question[:80], assistant_created_at, conversation_id, user_id),
+                )
+            else:
+                connection.execute(
+                    "UPDATE conversations SET updated_at = ? WHERE id = ? AND user_id = ?",
+                    (assistant_created_at, conversation_id, user_id),
+                )
+
+        user_message = {
+            "id": user_message_id,
+            "conversation_id": conversation_id,
+            "role": "user",
+            "content": question,
+            "citations": [],
+            "model": None,
+            "input_tokens": 0,
+            "output_tokens": 0,
+            "created_at": user_created_at,
+        }
+        assistant_message = {
+            "id": assistant_message_id,
+            "conversation_id": conversation_id,
+            "role": "assistant",
+            "content": answer,
+            "citations": citations,
+            "model": model,
+            "input_tokens": input_tokens,
+            "output_tokens": output_tokens,
+            "created_at": assistant_created_at,
+        }
+        return user_message, assistant_message
+
     def list_messages(self, conversation_id: str, user_id: str, limit: int | None = None) -> list[dict[str, Any]]:
         query = """SELECT m.* FROM messages m
             JOIN conversations c ON c.id = m.conversation_id

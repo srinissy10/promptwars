@@ -13,9 +13,34 @@ from ..core.config import Config
 
 
 class OpenAIError(RuntimeError):
-    def __init__(self, message: str, status_code: int | None = None):
+    def __init__(
+        self,
+        message: str,
+        status_code: int | None = None,
+        *,
+        provider_code: str | None = None,
+        failure_type: str = "provider_error",
+        endpoint: str | None = None,
+    ):
         super().__init__(message)
         self.status_code = status_code
+        self.provider_code = provider_code
+        self.failure_type = failure_type
+        self.endpoint = endpoint
+
+    @property
+    def user_message(self) -> str:
+        if self.status_code in {401, 403}:
+            return "The AI provider rejected authentication or model access. Check the provider settings."
+        if self.status_code == 429:
+            return "The AI provider is rate-limiting requests. A local answer was used instead."
+        if self.status_code == 400:
+            return "The AI provider rejected the request. Check the selected model and provider settings."
+        if self.status_code is not None and self.status_code >= 500:
+            return "The AI provider is temporarily unavailable. A local answer was used instead."
+        if self.failure_type in {"timeout", "network"}:
+            return "The AI provider could not be reached in time. A local answer was used instead."
+        return "The AI provider could not generate an answer. A local answer was used instead."
 
 
 @dataclass(frozen=True)
@@ -47,6 +72,10 @@ class OpenAIClient:
         self.retry_base_seconds = float(settings.get("retry_base_seconds", 1.5))
 
     @property
+    def chat_timeout_seconds(self) -> int:
+        return max(1, self.timeout * 2 + 15)
+
+    @property
     def configured(self) -> bool:
         return bool(self.api_key)
 
@@ -63,28 +92,60 @@ class OpenAIClient:
             method="POST",
         )
         last_error: OpenAIError | None = None
+        deadline = time.monotonic() + self.timeout
         for attempt in range(self.max_retries + 1):
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise OpenAIError(
+                    "OpenAI request exceeded its configured timeout",
+                    failure_type="timeout",
+                    endpoint=endpoint,
+                )
             try:
-                with urllib.request.urlopen(request, timeout=self.timeout) as response:
-                    return json.loads(response.read().decode("utf-8"))
+                with urllib.request.urlopen(request, timeout=remaining) as response:
+                    try:
+                        return json.loads(response.read().decode("utf-8"))
+                    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+                        raise OpenAIError(
+                            "OpenAI returned an invalid response",
+                            failure_type="invalid_response",
+                            endpoint=endpoint,
+                        ) from exc
             except urllib.error.HTTPError as exc:
+                provider_code: str | None = None
                 try:
                     error_data = json.loads(exc.read().decode("utf-8"))
-                    message = str(error_data.get("error", {}).get("message", exc.reason))
-                except (json.JSONDecodeError, UnicodeDecodeError):
-                    message = str(exc.reason)
-                last_error = OpenAIError(message, exc.code)
+                    error_details = error_data.get("error", {})
+                    if isinstance(error_details, dict):
+                        raw_code = error_details.get("code") or error_details.get("type")
+                        if isinstance(raw_code, str):
+                            provider_code = re.sub(r"[^A-Za-z0-9_.-]", "", raw_code)[:64] or None
+                except (AttributeError, json.JSONDecodeError, UnicodeDecodeError):
+                    pass
+                last_error = OpenAIError(
+                    "OpenAI request failed",
+                    exc.code,
+                    provider_code=provider_code,
+                    failure_type="http_error",
+                    endpoint=endpoint,
+                )
                 retryable = exc.code == 429 or exc.code >= 500
                 if not retryable or attempt == self.max_retries:
                     raise last_error from exc
-                retry_after = exc.headers.get("retry-after")
+                retry_after = exc.headers.get("retry-after") if exc.headers else None
                 delay = float(retry_after) if retry_after and retry_after.replace(".", "", 1).isdigit() else self.retry_base_seconds * (2**attempt)
             except (urllib.error.URLError, TimeoutError) as exc:
-                last_error = OpenAIError(f"Could not reach OpenAI: {exc.reason if hasattr(exc, 'reason') else exc}")
+                reason = getattr(exc, "reason", None)
+                failure_type = "timeout" if isinstance(reason, TimeoutError) or isinstance(exc, TimeoutError) else "network"
+                last_error = OpenAIError(
+                    "Could not reach OpenAI",
+                    failure_type=failure_type,
+                    endpoint=endpoint,
+                )
                 if attempt == self.max_retries:
                     raise last_error from exc
                 delay = self.retry_base_seconds * (2**attempt)
-            time.sleep(min(delay, 20.0))
+            time.sleep(min(delay, 20.0, max(0.0, deadline - time.monotonic())))
         raise last_error or OpenAIError("OpenAI request failed")
 
     @staticmethod

@@ -254,7 +254,7 @@ export function Workspace() {
   }
 
   async function sendMessage(content: string) {
-    if (!selectedDocument || selectedDocument.status !== "ready" || chatBusy) return;
+    if (!settings || !selectedDocument || selectedDocument.status !== "ready" || chatBusy) return;
     setChatBusy(true);
     setDraftPrompt(null);
     let conversationId = selectedConversationId;
@@ -301,12 +301,12 @@ export function Workspace() {
           if (metadata.warning) toast.warning("Answer generated with a fallback", { description: metadata.warning });
         },
         done: () => updateAssistant((message) => ({ ...message, streaming: false })),
-      });
+      }, (settings.chat_timeout_seconds + 5) * 1000);
 
       await queryClient.invalidateQueries({ queryKey: ["conversations", selectedDocument.id] });
     } catch (error) {
       if (conversationId) {
-        queryClient.setQueryData<Message[]>(["messages", conversationId], (items = []) => items.map((message) => message.streaming ? { ...message, streaming: false, failed: true, content: message.content || `Couldn’t generate an answer: ${getErrorMessage(error)}` } : message));
+        queryClient.setQueryData<Message[]>(["messages", conversationId], (items = []) => items.map((message) => message.streaming ? { ...message, streaming: false, failed: true, content: `Couldn’t generate an answer: ${getErrorMessage(error)}` } : message));
       }
       toast.error("Couldn’t generate an answer", { description: getErrorMessage(error) });
     } finally {

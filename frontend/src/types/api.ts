@@ -145,6 +145,7 @@ export interface Settings {
   openai_configured: boolean;
   chat_model: string;
   chat_models: ChatModel[];
+  chat_timeout_seconds: number;
   embedding_model: string;
   embedding_dimensions: number;
   max_file_mb: number;

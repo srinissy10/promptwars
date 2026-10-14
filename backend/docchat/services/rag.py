@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import math
 import re
 from dataclasses import dataclass
@@ -160,9 +161,21 @@ def extractive_answer(question: str, chunks: list[dict[str, Any]], refusal: str)
 
 
 class RagService:
-    def __init__(self, config: Config, client: OpenAIClient):
+    def __init__(self, config: Config, client: OpenAIClient, logger: logging.Logger | None = None):
         self.config = config
         self.client = client
+        self.logger = logger or logging.getLogger("docchat")
+
+    def _log_provider_error(self, error: OpenAIError, endpoint: str) -> None:
+        self.logger.warning(
+            "openai_request_failed",
+            extra={
+                "provider_endpoint": error.endpoint or endpoint,
+                "provider_status_code": error.status_code,
+                "provider_error_code": error.provider_code,
+                "provider_failure_type": error.failure_type,
+            },
+        )
 
     def embed_chunks(self, chunks: list[dict[str, Any]]) -> list[dict[str, Any]]:
         if not self.client.configured or not chunks:
@@ -192,7 +205,8 @@ class RagService:
             try:
                 query_embedding = self.client.embed([retrieval_query])[0]
             except OpenAIError as exc:
-                warning = f"Embedding request failed; used local keyword retrieval: {exc}"
+                self._log_provider_error(exc, "embeddings")
+                warning = "AI embeddings are unavailable; used local keyword retrieval."
 
         matches = retrieve(
             chunks,
@@ -231,7 +245,8 @@ class RagService:
                     warning,
                 )
             except OpenAIError as exc:
-                warning = f"OpenAI answer generation failed; used local extractive answer: {exc}"
+                self._log_provider_error(exc, "responses")
+                warning = exc.user_message
 
         return AnswerResult(
             extractive_answer(question, matches, refusal),

@@ -28,6 +28,11 @@ class JsonFormatter(logging.Formatter):
             "document_id",
             "conversation_id",
             "error_code",
+            "provider_endpoint",
+            "provider_status_code",
+            "provider_error_code",
+            "provider_failure_type",
+            "timeout_seconds",
         ):
             value = getattr(record, key, None)
             if value is not None:

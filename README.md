@@ -1,167 +1,206 @@
-MINDMATE --- Your Personal Knowledge Partner
+🧠 MINDMATE
 
-MINDMATE is a personal document-intelligence workspace designed to help
-users upload, understand, search, and manage their documents from one
-place. Instead of manually searching through long files, users can ask
-questions about their documents and receive answers grounded in the
-available document content.
+Your Personal Knowledge Partner
 
-The project is built around a local-first architecture: the web
-interface, API, database, uploaded files, and application logs can run
-on the user's computer. When configured, an OpenAI API is used for
-embeddings and AI-generated answers. API usage may incur charges.
+Upload. Understand. Ask. Find answers in your documents.
+:::
 
-Project status: This README describes the project design and
-development setup. Features should be considered complete only after
-they have been implemented and tested in the current codebase.
+📌 Table of Contents
 
-Core idea
+Overview
 
-MINDMATE aims to make personal documents easier to understand and work
-with through a single workspace.
+Problem Statement
 
-Upload and organize personal documents.
+Project Goals
 
-Ask questions about a document using AI.
+Features
 
-Generate concise document summaries.
+Technology Stack
 
-Preview documents before working with them.
+How It Works
 
-Review document version history.
+Architecture
 
-Create a separate compressed PDF for download while preserving the
-original file.
+Getting Started
 
-Support questions across multiple selected documents, with source
-citations.
+Configuration and API Keys
 
-Offer voice input in the existing chat interface, where supported by
-the current implementation.
+Privacy and Security
 
-Main workspace
+Testing
 
-The planned workspace brings document management and AI assistance
-together instead of making users switch between separate tools.
+Current Limitations and Next
+Steps
 
-AI Chat
+Project Status
 
-Ask natural-language questions about uploaded documents. Answers should
-use relevant retrieved passages and show sources where available. The
-chat should distinguish document content from file metadata---for
-example, a question about file size should return the file's size rather
-than a summary of its contents.
+🎯 Overview
 
-Document Preview
+MINDMATE --- Your Personal Knowledge Partner is a
+document-intelligence application designed to help users work with their
+personal documents in one workspace. Instead of manually searching
+through lengthy files, users can ask questions, explore relevant
+information, and get document-grounded responses.
 
-Preview a selected document from the workspace. The available preview
-format depends on the file type and the implementation.
+The project follows a local-first approach for the application
+interface, API, database, uploaded files, and logs. When configured, an
+AI provider can be used for semantic embeddings and answer generation.
 
-AI Summary
+Implementation note: This README describes the intended product
+and the documented local MVP architecture. Features marked as planned
+or requiring verification should not be considered complete until they
+work in the current codebase and have been tested.
 
-Generate a shorter overview of a document to help users understand its
-main points quickly.
+❓ Problem Statement
 
-Version History
+Important information is often scattered across PDFs, text files, and
+other documents. Finding a specific answer manually can be slow,
+especially when users need to search across multiple files.
 
-Track available versions of a document and review earlier versions when
+MINDMATE aims to reduce that effort by combining document management,
+retrieval, and conversational question answering in one workspace.
+
+🎯 Project Goals
+
+Make document information easier to search and understand.
+
+Answer questions using relevant passages from a user's documents.
+
+Provide source references so users can check where an answer came
+from.
+
+Keep document-management workflows together in one interface.
+
+Protect user-specific documents through ownership checks.
+
+Keep local data and secrets out of public source control.
+
+✨ Features
+
+Core document intelligence
+
+Document upload: Add supported documents to the workspace.
+
+AI chat: Ask natural-language questions about document content.
+
+Grounded answers: Retrieve relevant passages before generating
+an answer.
+
+Source citations: Display source details where supported by the
+implementation.
+
+Document summary: Produce a concise overview of a selected
+document.
+
+Document preview: Inspect a document in the workspace.
+
+Document management
+
+Version history: Review available versions of a document, if
 versioning is enabled.
 
-PDF Compression
+PDF compression: Intended to create a separate compressed PDF
+that can be downloaded without overwriting the original.
 
-Generate a compressed PDF as a separate downloadable output. The
-original uploaded document should remain unchanged.
+Multi-document chat: Intended to answer questions across
+selected documents and identify the supporting sources.
 
-Multi-document chat
+Voice input: Intended to convert speech into editable text and
+send it through the normal chat workflow.
 
-Ask a question across one or more selected documents. The answer should
-be grounded in those documents and identify its sources. The interface
-is intended to remain part of the existing AI Chat experience.
+Experience and reliability
 
-Voice input
+The documented MVP architecture also includes registration and sign-in,
+protected authentication state, upload status, loading/error states,
+conversation history, and structured application logs. Confirm the
+behavior of each item in the running application.
 
-Use the microphone to turn speech into editable text, then submit that
-text through the normal chat flow. Browser speech-recognition support
-and permissions may affect availability.
+🧰 Technology Stack
 
-Technology stack
+Layer                       Technology
 
-The documented local MVP architecture uses:
+Frontend                    React, TypeScript, Vite
+UI styling/components       Tailwind CSS and shadcn/ui patterns
+Backend API                 Python, FastAPI
+Local database              SQLite
+Document processing         Text extraction, chunking, and retrieval
+AI integration              OpenAI embeddings and Responses API when configured
+Client-side data fetching   TanStack Query
+Forms and validation        React Hook Form and Zod
+API exploration             FastAPI interactive documentation
 
-Layer                               Technology
+Check requirements.txt, frontend/package.json, and the actual source
+code to confirm the dependencies used by the current version.
 
-Frontend                            React, TypeScript, Vite
+🔄 How It Works
 
-UI                                  Tailwind CSS and shadcn/ui patterns
+Upload --- The user uploads a supported document.
 
-Backend API                         Python, FastAPI
+Extract --- The backend extracts readable text.
 
-Database                            SQLite
+Chunk --- The text is split into smaller sections for retrieval.
 
-Document processing                 Local parsing, chunking, and
-retrieval
+Index --- If configured, an embedding model converts chunks into
+vectors.
 
-AI integration                      OpenAI embeddings and Responses
-API, when configured
+Ask --- The user asks a question in the chat.
 
-Frontend data and forms             TanStack Query, React Hook Form,
-Zod
+Retrieve --- The system finds passages relevant to the question.
 
-API documentation                   FastAPI interactive docs
-
-Check the actual project files and dependency manifests before assuming
-every item in this table is currently integrated.
-
-How document Q&A works
-
-The intended document-question-answering flow is:
-
-Upload: The user uploads a supported document.
-
-Extract: The backend extracts readable text from the file.
-
-Chunk: The extracted text is divided into smaller sections for
-retrieval.
-
-Index: When an API key is configured, document chunks can be
-embedded for semantic retrieval.
-
-Retrieve: A user's question is matched against relevant document
-passages.
-
-Generate: The AI creates an answer based on the retrieved
+Answer --- The AI generates a response based on the retrieved
 evidence.
 
-Cite: The response presents source details where available.
+Cite --- The application displays source information when
+available.
 
-A local extractive fallback may be used when the API key or network is
-unavailable. The fallback may not provide the same conversational
-quality as an AI-generated response.
+A local extractive fallback may be available if the API key or network
+is unavailable. This fallback may be less conversational than
+provider-generated answers.
 
-Privacy and local data
+Metadata-aware behavior is important: a question such as "What is
+the file size?" should return file metadata, not a summary of the
+document's contents.
 
-In the local architecture, the application database, uploaded documents,
-and logs are stored on the user's computer. If OpenAI features are
-enabled, document text or selected text passages may be sent to the
-configured API as required for embedding or answer generation. Users
-should review their configuration and provider policies before uploading
-sensitive documents.
+🏗️ Architecture
 
-Do not commit API keys, passwords, local configuration containing
-secrets, uploaded documents, databases, or generated logs to source
-control. Keep local secrets out of screenshots, chat messages, and
-public repositories.
+┌─────────────────────────────────────────────┐
+│              React + TypeScript UI           │
+│  Document Workspace | AI Chat | Sources      │
+└──────────────────────┬──────────────────────┘
+                       │ HTTP / API
+┌──────────────────────▼──────────────────────┐
+│                FastAPI Backend               │
+│ Auth | Upload | Parsing | Retrieval | Chat   │
+└───────────────┬─────────────────┬───────────┘
+                │                 │
+┌───────────────▼────────┐  ┌─────▼───────────┐
+│      SQLite + Files    │  │  AI Provider    │
+│ Local documents/data   │  │ If configured   │
+└────────────────────────┘  └─────────────────┘
 
-Quick start in VS Code
+This is a conceptual architecture. Confirm the current source tree and
+configuration before treating it as an exact deployment diagram.
 
-Use the commands that match the current repository. The following
-reflects the documented FastAPI + React/Vite setup.
+🚀 Getting Started
+
+Prerequisites
+
+Install the following tools:
+
+Python
+
+Node.js and npm
+
+Git
+
+Visual Studio Code (recommended)
 
 1. Open the project
 
-Open the MINDMATE project folder in VS Code.
+Open the repository folder in VS Code and start a terminal at the
+project root.
 
-2. Create and activate a Python virtual environment
+2. Create the Python environment
 
 Windows PowerShell:
 
@@ -170,8 +209,8 @@ python -m venv .venv
 python -m pip install --upgrade pip
 python -m pip install -r requirements.txt
 
-If PowerShell blocks activation, use the Python executable inside
-.venv directly or follow your local environment's activation policy.
+If your current project uses a different backend entry point or
+dependency file, follow the files in the repository.
 
 3. Install frontend dependencies
 
@@ -182,167 +221,170 @@ cd ..
 
 4. Start the backend
 
+For the documented local MVP:
+
 python run.py
 
-If the entry point or commands differ in the current repository, use its
-actual run configuration.
+Use the actual entry point if the repository has changed.
 
-5. Open the application
+5. Open the app
 
-App: http://localhost:8000
+Application: http://localhost:8000
 
-API documentation: http://localhost:8000/docs
+Interactive API docs: http://localhost:8000/docs
 
-Create an account if registration is enabled. Configure an API key only
-through the application's intended settings interface. Never paste the
-key into the chat or commit it to GitHub.
+Create an account if registration is enabled. Configure the AI provider
+through the intended settings UI.
 
-6. Frontend development mode
+6. Run the frontend in development mode
 
-Keep the backend running and open a second terminal:
+Keep the backend running, then open a second terminal:
 
 cd frontend
 npm run dev
 
-Open the Vite URL printed in the terminal, commonly
-http://localhost:5173.
+Open the local URL printed by Vite, commonly http://localhost:5173.
 
-Configuration
+⚙️ Configuration and API Keys
 
-Configuration options depend on the current codebase. The documented
-local MVP uses config.yaml for settings such as:
+The documented MVP uses config.yaml for runtime settings, including
+server details, local storage paths, authentication, upload limits,
+chunking, retrieval, chat provider, model names, and logging.
 
-Server host and port
+Never paste an API key into chat messages or commit it to Git.
 
-Database, upload, log, and static-UI paths
+Keep real local configuration containing secrets excluded by
+.gitignore.
 
-Authentication and token settings
+If sharing the project, provide a safe example configuration without
+real credentials.
 
-Allowed upload file types and size limits
+An AI provider API key may require separate billing; a ChatGPT
+subscription does not automatically include API credits.
 
-Document chunking and retrieval settings
+If the API key is added after documents have already been indexed,
+those documents may need to be re-indexed according to the
+application's supported workflow.
 
-Chat provider, prompt, and model selection
+🔐 Privacy and Security
 
-OpenAI API key, model names, and timeouts
+The local-first setup is intended to keep the application database,
+uploaded files, and logs on the user's computer. However, when
+AI-provider features are enabled, document text or selected passages may
+be sent to the configured provider to create embeddings or generate
+answers.
 
-Logging level and rotation
+Security practices:
 
-Do not publish a real API key or secret configuration file. If the
-project uses config.yaml, keep the real local file ignored by Git and
-provide a safe example configuration for collaborators.
+Enforce user ownership checks on document and conversation
+endpoints.
 
-Local data and logs
+Store passwords using a suitable password-hashing method.
 
-The documented local MVP uses these paths:
+Keep API keys and token secrets out of source control.
 
-SQLite database: data/docchat.db (rename to a MINDMATE-specific
-path if the implementation has been updated)
+Avoid logging full document text or credentials.
 
-Uploaded files: data/uploads/
+Do not upload sensitive files unless you understand the configured
+processing and provider policies.
 
-Structured logs: logs/
+Back up important local documents and database files before making
+destructive changes.
 
-Confirm the actual paths in the current configuration before deleting or
-moving data. Deleting application data may permanently remove accounts,
-documents, conversations, and related records. Stop the application
-first and make a backup if the data matters.
+🧪 Testing
 
-Testing
-
-Run the tests included in the repository. For the documented setup:
+For the documented backend test suite:
 
 python -m unittest discover -s tests -v
 
-For frontend tests, if configured:
+If frontend tests are configured:
 
 cd frontend
 npm test
 
-A successful test run verifies only the behaviors covered by those
-tests. It does not necessarily validate live AI-provider requests, every
-file type, or every UI workflow.
+Tests only verify the behavior they cover. A passing suite does not
+automatically confirm live AI-provider requests or every end-to-end UI
+feature.
 
-API documentation
+Recommended manual checks:
 
-When the backend is running, use:
+Register, sign in, and sign out.
 
-http://localhost:8000/docs
+Upload supported document types and verify processing status.
 
-The documented API design includes endpoints for authentication,
-document upload and retrieval, conversations, streamed chat responses,
-feedback, API-key settings, health, and readiness. Confirm the exact
-endpoint list in the running API documentation.
+Ask content questions and confirm citations.
 
-Repository structure
+Ask metadata questions, such as file name and file size.
 
-The documented architecture is organized approximately as follows:
+Verify one user's documents cannot be accessed by another user.
 
-MINDMATE/
-├── backend/
-│   └── docchat/
-│       ├── api/routes/       # API endpoints
-│       ├── core/             # Configuration, authentication, logging
-│       ├── infrastructure/   # Database and provider clients
-│       ├── services/         # Parsing, ingestion, retrieval, AI answers
-│       └── main.py            # Application assembly
-├── frontend/
-│   └── src/
-│       ├── components/        # Workspace and UI components
-│       ├── lib/               # API client and shared utilities
-│       └── types/              # Frontend types
-├── tests/                     # Backend and frontend tests
-├── config.example.yaml        # Safe example configuration, if present
-├── run.py                     # Local entry point, if present
-└── README.md
+Test PDF compression and download while confirming the original
+remains unchanged.
 
-This is a reference structure based on the documented architecture, not
-a guarantee that every path exists in the current repository. Update it
-to match the actual project tree before publishing.
+Test version history and multi-document chat if implemented.
 
-Known limitations and next steps
+Test voice input in a supported browser if implemented.
 
-The following are important quality goals for MINDMATE and should be
-verified against the current implementation:
+🗺️ Current Limitations and Next Steps
 
-Ensure AI Chat answers the user's actual question, including file
+Prioritize validating these workflows in the current application:
+
+Reliable AI chat: Answer the question actually asked, including
 metadata questions.
 
-Keep responses grounded in retrieved document evidence and show
-useful citations.
+Grounded responses: Use relevant evidence and show useful source
+references.
 
-Verify document ownership checks so one user cannot access another
-user's documents.
+PDF compression: Generate a downloadable compressed copy without
+replacing the original.
 
-Test PDF compression end-to-end and confirm that the output is
-downloadable and the original remains unchanged.
+Multi-document chat: Support selected-document scopes and source
+citations.
 
-Test version creation, listing, and restoration if restoration is
-supported.
+Voice input: Allow users to review the speech transcript before
+sending it.
 
-Verify multi-document chat across selected files and the "all my
-documents" scope.
+Document versions: Confirm version creation, listing, and any
+supported restore behavior.
 
-Verify voice input, transcript editing, and submission through the
-regular chat pipeline.
+Security: Test authentication and per-user document isolation.
 
-Remove any UI sections that are not part of the intended product
-experience.
+UI consistency: Keep the workspace focused and remove sections
+that are not part of the intended product.
 
-Add tests for error states, unsupported files, empty documents,
-large files, and provider failures.
+Error handling: Test unsupported files, empty documents, large
+uploads, and provider/network failures.
 
-Design trade-offs
+📌 Project Status
 
-A local-first MVP can use SQLite, local folders, and FastAPI background
-tasks to stay straightforward to run and understand. A larger team
-deployment may need a production database, object storage, durable
-background jobs, stronger secret management, HTTPS, backups, and
+MINDMATE is an evolving project. Treat each feature as complete only
+after implementation and end-to-end verification. Update this section as
+features are finished and tested.
+
+Area                                Status to verify
+
+Local application setup             Verify in current environment
+
+Authentication and document         Test end to end
+isolation
+
+Document upload and parsing         Test supported file types
+
+AI chat and citations               Test content and metadata questions
+
+Document summary and preview        Verify UI and API
+
+Version history                     Verify implementation
+
+PDF compression and download        Verify output and original
+preservation
+
+Multi-document chat                 Verify implementation
+
+🧱 Design Trade-offs
+
+A local-first MVP using SQLite, local folders, and FastAPI can be easier
+to run and understand than a distributed system. A larger production
+deployment may need a managed database, object storage, durable
+background jobs, stronger secret management, backups, HTTPS, and
 operational monitoring.
-
-Project goal
-
-MINDMATE --- Your Personal Knowledge Partner aims to turn personal
-documents into information users can find, understand, and act
-on---through document-grounded chat and practical document-management
-tools.

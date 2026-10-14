@@ -1,0 +1,22 @@
+services:
+  docchat:
+    build: .
+    container_name: docchat-local
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./config.yaml:/app/config.yaml
+      - ./data:/app/data
+      - ./logs:/app/logs
+    restart: unless-stopped
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - >-
+          python -c "import urllib.request,yaml;
+          c=yaml.safe_load(open('/app/config.yaml'));
+          urllib.request.urlopen('http://127.0.0.1:'+str(c['server']['port'])+'/health', timeout=3)"
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s

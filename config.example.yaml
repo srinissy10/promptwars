@@ -1,0 +1,75 @@
+app:
+  name: DocChat Local
+  version: 0.1.0
+  description: Local document management and grounded document chat MVP
+server:
+  host: 0.0.0.0
+  port: 8000
+  reload: false
+paths:
+  database: data/docchat.db
+  uploads: data/uploads
+  log_file: logs/docchat.jsonl
+  static: frontend/dist
+security:
+  secret_key: change-this-local-development-secret
+  token_ttl_minutes: 1440
+  password_iterations: 210000
+uploads:
+  max_file_mb: 50
+  allowed_extensions:
+    - .pdf
+    - .docx
+    - .txt
+chunking:
+  max_words: 500
+  overlap_words: 75
+  max_chunks_per_document: 8000
+retrieval:
+  top_k: 6
+  min_score: 0.08
+  max_context_characters: 12000
+  match_levels:
+    exact_lexical: 0.95
+    high_score: 0.6
+    medium_score: 0.35
+chat:
+  provider: openai
+  fallback_provider: extractive
+  refusal_message: The document does not contain enough information to answer that question.
+  recent_messages: 10
+  stream_chunk_characters: 28
+  system_prompt: >-
+    You are a document question-answering assistant. Answer only from DOCUMENT CONTEXT.
+    If the context is insufficient, say that the document does not contain enough
+    information. Do not invent names, dates, numbers, clauses, or processes. Keep the
+    answer concise and do not add a source list because citations are displayed
+    separately by the application.
+openai:
+  api_key: ''
+  base_url: https://api.openai.com/v1
+  chat_model: gpt-5.6-terra
+  chat_models:
+    - id: gpt-5.6-luna
+      label: Luna
+      description: Fastest and lowest cost
+    - id: gpt-5.6-terra
+      label: Terra
+      description: Balanced quality and cost
+    - id: gpt-5.6-sol
+      label: Sol
+      description: Highest quality
+  reasoning_effort: low
+  max_output_tokens: 700
+  timeout_seconds: 120
+  embedding_model: text-embedding-3-small
+  embedding_dimensions: 256
+  embedding_batch_size: 64
+  embedding_max_batch_tokens: 60000
+  embedding_max_input_tokens: 8000
+  max_retries: 4
+  retry_base_seconds: 1.5
+logging:
+  level: INFO
+  max_bytes: 5242880
+  backup_count: 3

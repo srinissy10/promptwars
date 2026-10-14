@@ -1,0 +1,26 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "DocChat: install dependencies",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python -m pip install -r requirements.txt && npm install --prefix frontend",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    },
+    {
+      "label": "DocChat: build frontend",
+      "type": "shell",
+      "command": "npm run build --prefix frontend",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": ["$tsc"]
+    },
+    {
+      "label": "DocChat: run tests",
+      "type": "shell",
+      "command": "${workspaceFolder}/.venv/bin/python -m unittest discover -s tests -v",
+      "options": { "cwd": "${workspaceFolder}" },
+      "problemMatcher": []
+    }
+  ]
+}

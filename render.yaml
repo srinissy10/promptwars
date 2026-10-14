@@ -1,0 +1,9 @@
+services:
+  - type: web
+    name: docchat-live-demo
+    runtime: docker
+    plan: free
+    healthCheckPath: /ready
+    envVars:
+      - key: DOCCHAT_SECRET_KEY
+        generateValue: true

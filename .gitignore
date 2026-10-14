@@ -1,0 +1,14 @@
+.venv/
+.gh-config/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.DS_Store
+data/
+logs/
+.doc_review/
+frontend/node_modules/
+frontend/dist/
+frontend/*.tsbuildinfo
+# config.yaml contains the local API key. Keep it out of source control.
+config.yaml

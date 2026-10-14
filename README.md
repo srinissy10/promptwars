@@ -1,163 +1,348 @@
-# DocChat Local MVP
+MINDMATE --- Your Personal Knowledge Partner
 
-DocChat is a deliberately small local document chatbot. The browser UI, API, SQLite database, uploaded files, and structured logs run on your computer. OpenAI is used only for embeddings and grounded answer generation when an API key is configured.
-## Screenshots
+MINDMATE is a personal document-intelligence workspace designed to help
+users upload, understand, search, and manage their documents from one
+place. Instead of manually searching through long files, users can ask
+questions about their documents and receive answers grounded in the
+available document content.
 
-### Account Registration
-<img width="870" height="418" alt="docchat-register" src="https://github.com/user-attachments/assets/72ccbcf9-c229-491f-8108-e7860e7d3673" />
+The project is built around a local-first architecture: the web
+interface, API, database, uploaded files, and application logs can run
+on the user's computer. When configured, an OpenAI API is used for
+embeddings and AI-generated answers. API usage may incur charges.
 
-### Sign In
-<img width="931" height="421" alt="docchat-login" src="https://github.com/user-attachments/assets/71be4da6-fb04-429c-811d-f1c1f4aa0a5b" />
+Project status: This README describes the project design and
+development setup. Features should be considered complete only after
+they have been implemented and tested in the current codebase.
 
-### Document Workspace
-<img width="953" height="423" alt="docchat-workspace" src="https://github.com/user-attachments/assets/067891e6-5701-4e3b-a106-6a597ae39f28" />
+Core idea
 
-## What is included
+MINDMATE aims to make personal documents easier to understand and work
+with through a single workspace.
 
-- Email/password registration and signed bearer tokens
-- User-isolated PDF, DOCX, and TXT upload up to the configured size limit
-- Local parsing, chunking, SQLite persistence, conversation history, and feedback
-- Token-aware OpenAI embedding batches with local cosine retrieval plus keyword fallback
-- OpenAI Responses API answer generation constrained to retrieved passages
-- Offline extractive fallback if the API key or network is unavailable
-- Source citations containing page, section, chunk ID, match level, and snippet
-- SSE response events for the browser chat experience
-- Local JSONL logs with request IDs and latency; document text is not logged
-- React + TypeScript workspace built with Vite, Tailwind CSS, and shadcn/ui patterns
-- TanStack Query caching, React Hook Form + Zod validation, and protected authentication state
-- Upload progress, processing status, loading/empty/error states, retry actions, and toast feedback
-- Switchable chat models and a responsive Sources panel with expandable citation cards
-- API-key entry in the local settings dialog; the saved key is never sent back to the browser
-- Desktop three-column workspace and responsive document/source drawers
-- VS Code launch, dependency, and test tasks
+Upload and organize personal documents.
 
-Every setting is in `config.yaml`. There is no `.env` file.
+Ask questions about a document using AI.
 
-## Quick start in VS Code
+Generate concise document summaries.
 
-1. Open this folder in VS Code.
-2. Open the integrated terminal and install the backend and frontend dependencies:
+Preview documents before working with them.
 
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   python -m pip install --upgrade pip
-   python -m pip install -r requirements.txt
-   cd frontend
-   npm install
-   npm run build
-   cd ..
-   ```
+Review document version history.
 
-   On Windows PowerShell, activate with `.venv\Scripts\Activate.ps1`. Update `.vscode/settings.json` to `.venv\\Scripts\\python.exe` if VS Code does not detect it automatically.
+Create a separate compressed PDF for download while preserving the
+original file.
 
-3. Run the app using either:
+Support questions across multiple selected documents, with source
+citations.
 
-   - VS Code **Run and Debug** → **DocChat: Run local app**, or
-   - the terminal: `python run.py`
+Offer voice input in the existing chat interface, where supported by
+the current implementation.
 
-4. Open [http://localhost:8000](http://localhost:8000), create an account, open the avatar settings, and paste your OpenAI API key into the password-style field. It is saved locally in `config.yaml`, applied immediately, and never returned to the browser.
+Main workspace
 
-5. Upload a document, wait for the `ready` badge, and ask a question. Do not paste the key into chat, logs, screenshots, or source control. `config.yaml` is excluded by `.gitignore`.
+The planned workspace brings document management and AI assistance
+together instead of making users switch between separate tools.
 
-The first upload with an API key creates embeddings through OpenAI. If you add the key after uploading documents, select each existing document and call `POST /api/documents/{id}/reindex` from the API docs at [http://localhost:8000/docs](http://localhost:8000/docs), or upload the document again.
+AI Chat
 
-## Configuration
+Ask natural-language questions about uploaded documents. Answers should
+use relevant retrieved passages and show sources where available. The
+chat should distinguish document content from file metadata---for
+example, a question about file size should return the file's size rather
+than a summary of its contents.
 
-The API key can be saved, replaced, or cleared from the local settings dialog without restarting. Edit `config.yaml` and restart the server for other configuration changes.
+Document Preview
 
-| Section | Important settings |
-| --- | --- |
-| `server` | Local host, port, development reload |
-| `paths` | SQLite database, upload directory, log file, static UI |
-| `security` | Local token secret, token lifetime, password hashing work factor |
-| `uploads` | File size and extension allowlist |
-| `chunking` | Chunk and overlap size |
-| `retrieval` | Result count, evidence threshold, context budget |
-| `chat` | OpenAI or extractive provider, refusal text, history length, system prompt |
-| `openai` | API key, base URL, chat/embedding models, reasoning effort, timeouts |
-| `logging` | Log level, rotation size, retained files |
+Preview a selected document from the workspace. The available preview
+format depends on the file type and the implementation.
 
-`gpt-5.6-terra` is the default chat model because it balances quality and cost for document Q&A. The header selector can switch among the models listed in `openai.chat_models`. `text-embedding-3-small` is the default embedding model, with 256 dimensions to keep large local SQLite indexes compact.
+AI Summary
 
-For large files, uploads are streamed to disk in 1 MB pieces. Extracted content is split into bounded 500-unit chunks, then embedding requests are packed by both item count and estimated token count. Rate-limit and transient server errors use exponential backoff. The default 8,000-chunk safety limit prevents an unusually text-heavy 50 MB file from creating an accidental unbounded API bill; it can be raised in `config.yaml` after estimating the expected cost and local index size.
+Generate a shorter overview of a document to help users understand its
+main points quickly.
 
-## Project structure
+Version History
 
-```text
-backend/docchat/
-  api/routes/       FastAPI endpoints grouped by resource
-  core/             YAML configuration, authentication, structured logging
-  infrastructure/   SQLite repository and OpenAI HTTP client
-  services/         parsing, chunking, ingestion, retrieval, answer generation
-  main.py           small application assembly layer
-frontend/           standalone local browser UI
-  src/components/   React feature and shadcn/ui components
-  src/lib/          typed API client and shared utilities
-  src/types/        FastAPI response and domain types
-  dist/             production build served by FastAPI
-tests/              unit and upload-to-chat integration tests
-config.yaml         all runtime configuration
-run.py              local entry point
-```
+Track available versions of a document and review earlier versions when
+versioning is enabled.
 
-## Local data and logs
+PDF Compression
 
-- SQLite database: `data/docchat.db`
-- Uploaded files: `data/uploads/`
-- Rotating structured log: `logs/docchat.jsonl`
+Generate a compressed PDF as a separate downloadable output. The
+original uploaded document should remain unchanged.
 
-Deleting a document removes its file, chunks, conversations, messages, citations, and feedback. To reset the whole MVP, stop the server and manually delete `data/` and `logs/`. This is intentionally not automated because the operation is destructive.
+Multi-document chat
 
-## Run tests
+Ask a question across one or more selected documents. The answer should
+be grounded in those documents and identify its sources. The interface
+is intended to remain part of the existing AI Chat experience.
 
-Use the VS Code task **DocChat: run tests**, or run both suites:
+Voice input
 
-```bash
-python -m unittest discover -s tests -v
-cd frontend && npm test
-```
+Use the microphone to turn speech into editable text, then submit that
+text through the normal chat flow. Browser speech-recognition support
+and permissions may affect availability.
 
-The tests cover password/token security, multilingual chunking, user ownership isolation, a TXT upload-to-chat flow with citations, frontend display helpers, and document status rendering. They do not spend API credits. A live OpenAI request is intentionally not part of the test suite.
+Technology stack
 
-## Frontend development
+The documented local MVP architecture uses:
 
-For hot reload, keep FastAPI running on port 8000 and start Vite in a second terminal:
+Layer                               Technology
 
-```bash
+Frontend                            React, TypeScript, Vite
+
+UI                                  Tailwind CSS and shadcn/ui patterns
+
+Backend API                         Python, FastAPI
+
+Database                            SQLite
+
+Document processing                 Local parsing, chunking, and
+retrieval
+
+AI integration                      OpenAI embeddings and Responses
+API, when configured
+
+Frontend data and forms             TanStack Query, React Hook Form,
+Zod
+
+API documentation                   FastAPI interactive docs
+
+Check the actual project files and dependency manifests before assuming
+every item in this table is currently integrated.
+
+How document Q&A works
+
+The intended document-question-answering flow is:
+
+Upload: The user uploads a supported document.
+
+Extract: The backend extracts readable text from the file.
+
+Chunk: The extracted text is divided into smaller sections for
+retrieval.
+
+Index: When an API key is configured, document chunks can be
+embedded for semantic retrieval.
+
+Retrieve: A user's question is matched against relevant document
+passages.
+
+Generate: The AI creates an answer based on the retrieved
+evidence.
+
+Cite: The response presents source details where available.
+
+A local extractive fallback may be used when the API key or network is
+unavailable. The fallback may not provide the same conversational
+quality as an AI-generated response.
+
+Privacy and local data
+
+In the local architecture, the application database, uploaded documents,
+and logs are stored on the user's computer. If OpenAI features are
+enabled, document text or selected text passages may be sent to the
+configured API as required for embedding or answer generation. Users
+should review their configuration and provider policies before uploading
+sensitive documents.
+
+Do not commit API keys, passwords, local configuration containing
+secrets, uploaded documents, databases, or generated logs to source
+control. Keep local secrets out of screenshots, chat messages, and
+public repositories.
+
+Quick start in VS Code
+
+Use the commands that match the current repository. The following
+reflects the documented FastAPI + React/Vite setup.
+
+1. Open the project
+
+Open the MINDMATE project folder in VS Code.
+
+2. Create and activate a Python virtual environment
+
+Windows PowerShell:
+
+python -m venv .venv
+.venv\Scripts\Activate.ps1
+python -m pip install --upgrade pip
+python -m pip install -r requirements.txt
+
+If PowerShell blocks activation, use the Python executable inside
+.venv directly or follow your local environment's activation policy.
+
+3. Install frontend dependencies
+
+cd frontend
+npm install
+npm run build
+cd ..
+
+4. Start the backend
+
+python run.py
+
+If the entry point or commands differ in the current repository, use its
+actual run configuration.
+
+5. Open the application
+
+App: http://localhost:8000
+
+API documentation: http://localhost:8000/docs
+
+Create an account if registration is enabled. Configure an API key only
+through the application's intended settings interface. Never paste the
+key into the chat or commit it to GitHub.
+
+6. Frontend development mode
+
+Keep the backend running and open a second terminal:
+
 cd frontend
 npm run dev
-```
 
-Open [http://localhost:5173](http://localhost:5173). Vite proxies API, readiness, and health requests to FastAPI. Run `npm run build` before opening the production UI on port 8000.
+Open the Vite URL printed in the terminal, commonly
+http://localhost:5173.
 
-## Docker option
+Configuration
 
-```bash
-docker compose up --build
-```
+Configuration options depend on the current codebase. The documented
+local MVP uses config.yaml for settings such as:
 
-The container mounts `config.yaml`, `data/`, and `logs/` from this folder, so configuration and application data remain local. Open [http://localhost:8000](http://localhost:8000), then enter the API key in the local settings dialog.
+Server host and port
 
-For a temporary hosted demo, `render.yaml` defines a free Render web service. The
-container uses `config.example.yaml`, which never contains a real API key, and Render
-generates `DOCCHAT_SECRET_KEY` at deploy time. Free instances use ephemeral storage,
-so accounts and uploaded documents can reset after the service sleeps or redeploys.
+Database, upload, log, and static-UI paths
 
-## API overview
+Authentication and token settings
 
-- `POST /api/auth/register`, `POST /api/auth/login`
-- `GET/POST /api/documents`, `GET/DELETE /api/documents/{id}`
-- `POST /api/documents/{id}/reindex`
-- `GET/POST /api/documents/{id}/conversations`
-- `GET /api/conversations/{id}/messages`
-- `POST /api/conversations/{id}/messages/stream`
-- `POST /api/messages/{id}/feedback`
-- `GET /api/settings`, `PUT/DELETE /api/settings/openai-key`
-- `GET /health`, `GET /ready`
+Allowed upload file types and size limits
 
-Interactive API documentation is at [http://localhost:8000/docs](http://localhost:8000/docs) while the app is running.
+Document chunking and retrieval settings
 
-## MVP trade-offs
+Chat provider, prompt, and model selection
 
-This version intentionally replaces PostgreSQL/pgvector, Redis, MinIO, Celery, Next.js, and separate workers with SQLite, local folders, a static browser UI, and FastAPI background tasks. That makes it easy to understand and run in VS Code. For a team deployment, move secrets out of YAML, use a production database/object store, add a durable job queue, and terminate TLS in front of the API.
+OpenAI API key, model names, and timeouts
+
+Logging level and rotation
+
+Do not publish a real API key or secret configuration file. If the
+project uses config.yaml, keep the real local file ignored by Git and
+provide a safe example configuration for collaborators.
+
+Local data and logs
+
+The documented local MVP uses these paths:
+
+SQLite database: data/docchat.db (rename to a MINDMATE-specific
+path if the implementation has been updated)
+
+Uploaded files: data/uploads/
+
+Structured logs: logs/
+
+Confirm the actual paths in the current configuration before deleting or
+moving data. Deleting application data may permanently remove accounts,
+documents, conversations, and related records. Stop the application
+first and make a backup if the data matters.
+
+Testing
+
+Run the tests included in the repository. For the documented setup:
+
+python -m unittest discover -s tests -v
+
+For frontend tests, if configured:
+
+cd frontend
+npm test
+
+A successful test run verifies only the behaviors covered by those
+tests. It does not necessarily validate live AI-provider requests, every
+file type, or every UI workflow.
+
+API documentation
+
+When the backend is running, use:
+
+http://localhost:8000/docs
+
+The documented API design includes endpoints for authentication,
+document upload and retrieval, conversations, streamed chat responses,
+feedback, API-key settings, health, and readiness. Confirm the exact
+endpoint list in the running API documentation.
+
+Repository structure
+
+The documented architecture is organized approximately as follows:
+
+MINDMATE/
+├── backend/
+│   └── docchat/
+│       ├── api/routes/       # API endpoints
+│       ├── core/             # Configuration, authentication, logging
+│       ├── infrastructure/   # Database and provider clients
+│       ├── services/         # Parsing, ingestion, retrieval, AI answers
+│       └── main.py            # Application assembly
+├── frontend/
+│   └── src/
+│       ├── components/        # Workspace and UI components
+│       ├── lib/               # API client and shared utilities
+│       └── types/              # Frontend types
+├── tests/                     # Backend and frontend tests
+├── config.example.yaml        # Safe example configuration, if present
+├── run.py                     # Local entry point, if present
+└── README.md
+
+This is a reference structure based on the documented architecture, not
+a guarantee that every path exists in the current repository. Update it
+to match the actual project tree before publishing.
+
+Known limitations and next steps
+
+The following are important quality goals for MINDMATE and should be
+verified against the current implementation:
+
+Ensure AI Chat answers the user's actual question, including file
+metadata questions.
+
+Keep responses grounded in retrieved document evidence and show
+useful citations.
+
+Verify document ownership checks so one user cannot access another
+user's documents.
+
+Test PDF compression end-to-end and confirm that the output is
+downloadable and the original remains unchanged.
+
+Test version creation, listing, and restoration if restoration is
+supported.
+
+Verify multi-document chat across selected files and the "all my
+documents" scope.
+
+Verify voice input, transcript editing, and submission through the
+regular chat pipeline.
+
+Remove any UI sections that are not part of the intended product
+experience.
+
+Add tests for error states, unsupported files, empty documents,
+large files, and provider failures.
+
+Design trade-offs
+
+A local-first MVP can use SQLite, local folders, and FastAPI background
+tasks to stay straightforward to run and understand. A larger team
+deployment may need a production database, object storage, durable
+background jobs, stronger secret management, HTTPS, backups, and
+operational monitoring.
+
+Project goal
+
+MINDMATE --- Your Personal Knowledge Partner aims to turn personal
+documents into information users can find, understand, and act
+on---through document-grounded chat and practical document-management
+tools.
